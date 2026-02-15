@@ -1,0 +1,199 @@
+ASSIGNMENT 1
+
+Question 1: Write a MongoDB command to insert a document into a
+collection.
+
+Command: use collegeDB
+
+db.students.insertOne({ name: “Aman”, roll: 101, branch: “CSE”, marks:
+85 })
+
+Output: { acknowledged: true, insertId:
+ObjectId(“65c1b25ea1b23456789abcde”) }
+
+Question 2: Write a MongoDB command to delete a single document from a
+collection.
+
+Command: db.students.deleteOne({ roll: 101 })
+
+Output: { acknowledged: true, deletedCount: 1 }
+
+Question 3: Write a Python program to read image files from a directory,
+extract EXIF metadata such as device brand, model, GPS coordinates, and
+user information, and organize the images into different folders based
+on: 1. Device brand and model 2. User name 3. Location (Inside or
+Outside Adamas University) 4. GPS coordinates 5. Device category
+(Android, Apple, No Metadata)
+
+Code:
+
+import exifread import os import shutil import re import base64
+
+def get_brand_from_model(model): model_upper = model.upper()
+
+    if model_upper.startswith('SM-'):
+        return 'Samsung'
+    if model_upper.startswith(('CPH', 'PHT', 'PD')):
+        return 'OPPO'
+    if model_upper.startswith('RMX'):
+        return 'Realme'
+    if model_upper.startswith('V') or re.match(r'V\d{4}', model_upper):
+        return 'Vivo'
+    if 'XIAOMI' in model_upper:
+        return 'Xiaomi'
+    if 'PIXEL' in model_upper:
+        return 'Google'
+    if 'IPHONE' in model_upper:
+        return 'Apple'
+    if 'MOTO' in model_upper or model_upper.startswith('XT'):
+        return 'Motorola'
+    if 'INFINIX' in model_upper:
+        return 'Infinix'
+    if 'IQOO' in model_upper:
+        return 'iQOO'
+    if 'NOTHING' in model_upper:
+        return 'Nothing'
+    if 'ONEPLUS' in model_upper:
+        return 'OnePlus'
+
+    return "Unknown_Brand"
+
+def get_gps(tags): def convert(value): d = value.values[0].num /
+value.values[0].den m = value.values[1].num / value.values[1].den s =
+value.values[2].num / value.values[2].den return d + (m / 60) + (s /
+3600)
+
+    try:
+        lat = tags.get("GPS GPSLatitude")
+        lat_ref = tags.get("GPS GPSLatitudeRef")
+        lon = tags.get("GPS GPSLongitude")
+        lon_ref = tags.get("GPS GPSLongitudeRef")
+
+        if not lat or not lon:
+            return None
+
+        latitude = convert(lat)
+        longitude = convert(lon)
+
+        if lat_ref.values[0] != 'N':
+            latitude = -latitude
+        if lon_ref.values[0] != 'E':
+            longitude = -longitude
+
+        return latitude, longitude
+
+    except:
+        return None
+
+def segment_images(): source_dir = “.” target_dir = “Segmented_Data”
+
+    if os.path.exists(target_dir):
+        shutil.rmtree(target_dir)
+
+    os.makedirs(target_dir)
+
+    for file in os.listdir(source_dir):
+        if not file.lower().endswith(('.jpg', '.jpeg', '.png')):
+            continue
+
+        filepath = os.path.join(source_dir, file)
+
+        user_name = "Unknown_User"
+        name_part = os.path.splitext(file)[0]
+
+        if '_' in name_part:
+            user_name = name_part.split('_')[-1]
+
+        with open(filepath, 'rb') as img:
+            tags = exifread.process_file(img)
+
+        brand = str(tags.get('Image Make', 'Unknown_Brand'))
+        model = str(tags.get('Image Model', 'Unknown_Model'))
+
+        if brand == "Unknown_Brand":
+            brand = get_brand_from_model(model)
+
+        gps = get_gps(tags)
+        location = "No_GPS_Data"
+
+        if gps:
+            location = "Is_Inside_Adamas(gps[0], gps[1])"
+
+        brand_path = os.path.join(target_dir, "By_Brand", f"{brand}_{model}", user_name)
+        os.makedirs(brand_path, exist_ok=True)
+        shutil.copy2(filepath, brand_path)
+
+        location_path = os.path.join(target_dir, "By_Location", location, user_name)
+        os.makedirs(location_path, exist_ok=True)
+        shutil.copy2(filepath, location_path)
+
+        if gps:
+            coord = f"{round(gps[0],4)}_{round(gps[1],4)}"
+        else:
+            coord = "No_GPS"
+
+        coord_path = os.path.join(target_dir, "By_Coordinates", coord, user_name)
+        os.makedirs(coord_path, exist_ok=True)
+        shutil.copy2(filepath, coord_path)
+
+        if brand == "Apple":
+            device_type = "Apple"
+        elif brand == "Unknown_Brand":
+            device_type = "No_Metadata"
+        else:
+            device_type = "Android"
+
+        device_path = os.path.join(target_dir, "By_Device_Type", device_type, user_name)
+        os.makedirs(device_path, exist_ok=True)
+        shutil.copy2(filepath, device_path)
+
+    print("Image segmentation completed successfully.")
+
+if name == “main”: segment_images()
+
+Output: Image segmentation completed successfully.
+
+Folders created: Segmented_Data/ - By_Brand/ - By_Location/ -
+By_Coordinates/ - By_Device_Type/
+
+Question 4: Write a script to fetch date and time from an API after
+every 1000ms and insert the response into an existing MongoDB
+collection.
+
+Code:
+
+const { MongoClient } = require(“mongodb”); const https =
+require(“https”);
+
+const client = new MongoClient(“mongodb://localhost:27017”);
+
+async function run() { await client.connect(); const db =
+client.db(“collegeDB”); const col = db.collection(“timeData”);
+
+    setInterval(() => {
+        https.get("https://worldtimeapi.org/api/timezone/Asia/Kolkata", (res) => {
+            let data = "";
+
+            res.on("data", chunk => data += chunk);
+
+            res.on("end", async () => {
+                const json = JSON.parse(data);
+                await col.insertOne({ dateTime: json.dateTime });
+                console.log("Inserted:", json.dateTime);
+            });
+        });
+    }, 1000);
+
+}
+
+run();
+
+Output: Inserted: 2026-02-08T16:10:01.234+05:30 Inserted:
+2026-02-08T16:10:02.235+05:30 Inserted: 2026-02-08T16:10:03.236+05:30
+
+Question 5: Write a MongoDB query to update an existing document in a
+collection.
+
+Command: db.students.updateOne( { roll: 102 }, { $set: { marks: 90 } } )
+
+Output: { acknowledged: true, matchedCount: 1, modifiedCount: 1 }
